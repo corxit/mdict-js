@@ -635,10 +635,54 @@
      * @return a promise object which will resolve to definition in text. Link to other keyword is followed to get actual definition.
      */
     function findWord(keyinfo) {
-      var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
-      return _slice(block.comp_offset, block.comp_size)
-                .exec(read_definition, block, keyinfo)
-                  .spread(function (definition) { return resolve(followLink(definition, LOOKUP.mdx)); });
+        var block = RECORD_BLOCK_TABLE.find(keyinfo.offset);
+        return _slice(block.comp_offset, block.comp_size)
+            .exec(read_definition, block, keyinfo)
+            .spread(function (definition) {
+
+                /**
+                 * Replace Mark to CsssStyle
+                 * Processing With: https://www.douban.com/note/526161004/ - 法汉汉法词典
+                 */
+                var content_with_style = "";
+
+                //originnal content string
+                let content_string = definition;
+                let contents = content_string.split(/`\d`/g).filter(function(c){return c != "";});
+                //check if has special mark in content
+                let content_style_keys = content_string.match(/`\d`/g);
+                if (content_style_keys.length <= 0){
+                    content_with_style = content_string;
+                }
+                else{
+                    //fetch style string from attrs
+                    let styles_string = attrs['StyleSheet'];
+                    if (styles_string !== undefined && styles_string != null){
+                        let styles = styles_string.match(/\d\s((<[^>]+>)+\s*)+/g);
+
+                        //attach style to proper content
+                        $.each(contents, function(index,value){
+
+                            let content_style_index = parseInt(content_style_keys[index].replace("`", "").replace("`", ""))-1;
+                            if (content_style_index < styles.length){
+                                let style = styles[content_style_index].replace(/\d{1}\s{1}/g, "");
+                                let first_tag_with_space = style.match(/<[^>]+>[^<]*/)[0]
+                                let first_tag_pure = first_tag_with_space.match(/<[^>]+>/)[0]
+
+                                let this_line = first_tag_pure + contents[index] + style.replace(first_tag_with_space, "")
+                                content_with_style += this_line;
+                            }else{
+                                let this_line = contents[index]
+                                content_with_style += this_line;
+                            }
+                        });
+                    }else{
+                        content_with_style = content_string;
+                    }
+                }
+
+                return resolve(followLink(content_with_style, LOOKUP.mdx));
+            });
     }
     
     /**
